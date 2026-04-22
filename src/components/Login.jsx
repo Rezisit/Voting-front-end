@@ -12,7 +12,7 @@ function Login({ loginForm, setLoginForm, onLogin }) {
   // =========================
   const handleCodeLogin = async () => {
 
-    if (!userCode) {
+    if (!userCode.trim()) {
       alert("Please enter your user code");
       return;
     }
@@ -21,7 +21,9 @@ function Login({ loginForm, setLoginForm, onLogin }) {
 
       const res = await axios.post(
         "http://localhost:5000/api/auth/login-code",
-        { code: userCode }
+        {
+          code: userCode.trim().toUpperCase(),
+        }
       );
 
       localStorage.setItem("token", res.data.token);
@@ -33,7 +35,7 @@ function Login({ loginForm, setLoginForm, onLogin }) {
 
     } catch (err) {
 
-      alert(err.response?.data?.message || "Invalid user code");
+      alert(err.response?.data?.message || "Login failed");
 
     }
   };
@@ -61,14 +63,14 @@ function Login({ loginForm, setLoginForm, onLogin }) {
             style={mode === "user" ? activeTab : tab}
             onClick={() => setMode("user")}
           >
-             User Login
+            User Login
           </button>
 
           <button
             style={mode === "admin" ? activeTab : tab}
             onClick={() => setMode("admin")}
           >
-             Admin
+            Admin
           </button>
 
         </div>
@@ -88,7 +90,9 @@ function Login({ loginForm, setLoginForm, onLogin }) {
               placeholder="Enter User Code"
               value={userCode}
               required
-              onChange={(e) => setUserCode(e.target.value)}
+              onChange={(e) =>
+                setUserCode(e.target.value.toUpperCase())
+              }
             />
 
             <button

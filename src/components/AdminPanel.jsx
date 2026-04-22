@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 
-const API_URL = "http://localhost:5000/api/admin";
+const API_URL = "http://localhost:5000/api";
 
 function AdminPanel({
   candidateForm,
@@ -13,7 +13,6 @@ function AdminPanel({
   candidates,
   theme,
 }) {
-
   const [codes, setCodes] = useState([]);
   const [selectedCourse, setSelectedCourse] = useState("");
 
@@ -35,9 +34,7 @@ function AdminPanel({
 
   const yearLevels = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
   const blocks = ["Block 1", "Block 2", "Block 3"];
-
- 
-  const courses = ["BSIT", "BPA", "BSCS",  "BSENTREP", "BTVTED"];
+  const courses = ["BSIT", "BPA", "BSCS", "BSENTREP", "BTVTED"];
 
   const token = localStorage.getItem("token");
 
@@ -45,8 +42,9 @@ function AdminPanel({
     headers: { Authorization: `Bearer ${token}` },
   };
 
-  /* ================= FETCH ================= */
-
+  // ======================
+  // FETCH CODES
+  // ======================
   const fetchCodes = async () => {
     try {
       const res = await axios.get(`${API_URL}/codes`, authHeader);
@@ -56,6 +54,9 @@ function AdminPanel({
     }
   };
 
+  // ======================
+  // FETCH STATS (FIXED)
+  // ======================
   const fetchStats = async () => {
     try {
       const res = await axios.get(`${API_URL}/stats`, authHeader);
@@ -65,13 +66,20 @@ function AdminPanel({
     }
   };
 
+  // ======================
+  // SAFE REFRESH (FIXED)
+  // ======================
+  const refreshAll = async () => {
+    await Promise.all([fetchCodes(), fetchStats()]);
+  };
+
   useEffect(() => {
-    fetchCodes();
-    fetchStats();
+    refreshAll();
   }, []);
 
-  /* ================= ACTIONS ================= */
-
+  // ======================
+  // GENERATE CODES
+  // ======================
   const generateCodes = async () => {
     const amount = prompt("Enter number of voter codes to generate:");
 
@@ -82,14 +90,12 @@ function AdminPanel({
 
     try {
       await axios.post(
-        `${API_URL}/generate-codes`,
+        `${API_URL}/codes/generate`,
         { amount: Number(amount) },
         authHeader
       );
 
-      fetchCodes();
-      fetchStats();
-
+      await refreshAll();
       alert(`${amount} voter codes generated successfully.`);
     } catch (error) {
       console.error(error);
@@ -97,34 +103,50 @@ function AdminPanel({
     }
   };
 
+  // ======================
+  // DELETE CODE
+  // ======================
   const deleteCode = async (id) => {
     if (!window.confirm("Delete this voter code?")) return;
 
     try {
       await axios.delete(`${API_URL}/codes/${id}`, authHeader);
-      fetchCodes();
-      fetchStats();
+      await refreshAll();
     } catch (error) {
       alert("Failed to delete voter code.");
     }
   };
 
+  // ======================
+  // RESET ELECTION (FIXED)
+  // ======================
   const resetElection = async () => {
-    if (!window.confirm("Reset entire election? All votes will be deleted."))
+    if (
+      !window.confirm(
+        "Reset entire election? All votes will be permanently deleted."
+      )
+    )
       return;
 
     try {
-      await axios.post(`${API_URL}/reset-election`, {}, authHeader);
-      fetchCodes();
-      fetchStats();
-      alert("Election reset successfully.");
+      const res = await axios.post(
+        `${API_URL}/admin/reset-election`,
+        {},
+        authHeader
+      );
+
+      alert(res.data.message);
+
+      await refreshAll();
     } catch (error) {
-      alert("Failed to reset election.");
+      console.error(error.response?.data || error.message);
+      alert(error.response?.data?.message || "Failed to reset election.");
     }
   };
 
-  /* ================= FORM ================= */
-
+  // ======================
+  // CANCEL EDIT
+  // ======================
   const handleCancelEdit = () => {
     setCandidateForm({
       firstName: "",
@@ -133,7 +155,7 @@ function AdminPanel({
       partylist: "",
       yearLevel: "",
       block: "",
-      course: "", // ✅
+      course: "",
       description: "",
       image: null,
     });
@@ -141,6 +163,9 @@ function AdminPanel({
     setEditId(null);
   };
 
+  // ======================
+  // EDIT CLICK
+  // ======================
   const handleEditClick = (candidate) => {
     setEditId(candidate._id);
 
@@ -151,30 +176,32 @@ function AdminPanel({
       partylist: candidate.partylist || "",
       yearLevel: candidate.yearLevel || "",
       block: candidate.block || "",
-      course: candidate.course || "", // ✅
+      course: candidate.course || "",
       description: candidate.description || "",
       image: null,
     });
   };
 
-  /* ================= FILTER ================= */
-
+  // ======================
+  // FILTER CANDIDATES
+  // ======================
   const filteredCandidates = candidates.filter(
     (c) => !selectedCourse || c.course === selectedCourse
   );
 
-  /* ================= UI ================= */
-
+  // ======================
+  // UI
+  // ======================
   return (
     <div style={containerStyle(theme)}>
-
       {/* ================= STATS ================= */}
       <h3 style={{ color: theme.text }}>Election Statistics</h3>
 
       <div style={statsContainer}>
-        <StatCard title="Total Codes" value={stats.totalVoterCodes} theme={theme} />
-        <StatCard title="Votes Cast" value={stats.totalVotes} theme={theme} />
-      
+        <StatCard title="Total Codes" value={stats.totalVoterCodes} />
+        <StatCard title="Used Codes" value={stats.usedCodes} />
+        <StatCard title="Votes Cast" value={stats.totalVotes} />
+        <StatCard title="Turnout" value={`${stats.turnout}%`} />
       </div>
 
       <button onClick={resetElection} style={resetButton}>
@@ -193,7 +220,6 @@ function AdminPanel({
         }}
         style={formStyle}
       >
-
         <input
           type="text"
           placeholder="First Name"
@@ -256,7 +282,6 @@ function AdminPanel({
           ))}
         </select>
 
-        {/* ✅ COURSE */}
         <select
           value={candidateForm.course}
           onChange={(e) =>
@@ -281,7 +306,7 @@ function AdminPanel({
         />
 
         <textarea
-          placeholder="Candidate Description"
+          placeholder="Description"
           value={candidateForm.description}
           onChange={(e) =>
             setCandidateForm({ ...candidateForm, description: e.target.value })
@@ -309,8 +334,9 @@ function AdminPanel({
         </div>
       </form>
 
-      {/*  FILTER */}
+      {/* ================= FILTER ================= */}
       <h3 style={{ color: theme.text }}>Filter by Course</h3>
+
       <select
         value={selectedCourse}
         onChange={(e) => setSelectedCourse(e.target.value)}
@@ -331,7 +357,10 @@ function AdminPanel({
         filteredCandidates.map((c) => (
           <div key={c._id} style={candidateCard(theme)}>
             <div>
-              <strong>{c.firstName} {c.lastName}</strong> — {c.candidacy}
+              <strong>
+                {c.firstName} {c.lastName}
+              </strong>{" "}
+              — {c.candidacy}
               <br />
               <small>
                 {c.partylist || "Independent"} | {c.course || "No Course"}
@@ -352,12 +381,11 @@ function AdminPanel({
       )}
 
       {/* ================= CODES ================= */}
-      <div style={codesHeader}>
-        <h3 style={{ color: theme.text }}>Voter Codes</h3>
-        <button onClick={generateCodes} style={generateButton}>
-          Generate Codes
-        </button>
-      </div>
+      <h3 style={{ color: theme.text }}>Voter Codes</h3>
+
+      <button onClick={generateCodes} style={generateButton}>
+        Generate Codes
+      </button>
 
       <table style={table}>
         <thead>
@@ -382,20 +410,19 @@ function AdminPanel({
           ))}
         </tbody>
       </table>
-
     </div>
   );
 }
 
-/* COMPONENT */
-const StatCard = ({ title, value, theme }) => (
-  <div style={statCard(theme)}>
+/* ================= STATS CARD ================= */
+const StatCard = ({ title, value }) => (
+  <div style={statCard}>
     <h4>{title}</h4>
     <p>{value}</p>
   </div>
 );
 
-/* STYLES */
+/* ================= STYLES ================= */
 const containerStyle = (theme) => ({
   padding: 20,
   borderRadius: 10,
@@ -405,22 +432,32 @@ const containerStyle = (theme) => ({
   gap: 20,
 });
 
-const statsContainer = { display: "flex", gap: 20 };
+const statsContainer = {
+  display: "flex",
+  gap: 20,
+  flexWrap: "wrap",
+};
 
-const statCard = (theme) => ({
-  background: theme.background,
+const statCard = {
+  background: "#f3f4f6",
   padding: 15,
   borderRadius: 8,
   minWidth: 120,
   textAlign: "center",
-});
+};
 
-const formStyle = { display: "flex", flexDirection: "column", gap: 10 };
+const formStyle = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 10,
+};
 
-const inputStyle = () => ({
+const inputStyle = (theme) => ({
   padding: 8,
   borderRadius: 6,
   border: "1px solid #ccc",
+  background: theme.background,
+  color: theme.text,
 });
 
 const candidateCard = (theme) => ({
@@ -439,13 +476,56 @@ const primaryButton = (theme) => ({
   color: "#fff",
 });
 
-const editButton = { background: "#6366f1", color: "#fff", border: "none", padding: "4px 10px", borderRadius: 6 };
-const deleteButton = { background: "#ef4444", color: "#fff", border: "none", padding: "4px 10px", borderRadius: 6 };
-const cancelButton = { background: "#ef4444", color: "#fff", border: "none", padding: "8px 12px", borderRadius: 6 };
-const generateButton = { background: "#22c55e", color: "#fff", border: "none", padding: "8px 14px", borderRadius: 6 };
-const resetButton = { background: "#ef4444", color: "#fff", border: "none", padding: "8px 14px", borderRadius: 6, width: 200 };
-const codesHeader = { display: "flex", justifyContent: "space-between" };
-const table = { width: "100%", borderCollapse: "collapse" };
-const tableCell = { border: "1px solid #ccc", padding: 8, textAlign: "center" };
+const editButton = {
+  background: "#6366f1",
+  color: "#fff",
+  border: "none",
+  padding: "4px 10px",
+  borderRadius: 6,
+};
+
+const deleteButton = {
+  background: "#ef4444",
+  color: "#fff",
+  border: "none",
+  padding: "4px 10px",
+  borderRadius: 6,
+};
+
+const cancelButton = {
+  background: "#ef4444",
+  color: "#fff",
+  border: "none",
+  padding: "8px 12px",
+  borderRadius: 6,
+};
+
+const generateButton = {
+  background: "#22c55e",
+  color: "#fff",
+  border: "none",
+  padding: "8px 14px",
+  borderRadius: 6,
+};
+
+const resetButton = {
+  background: "#ef4444",
+  color: "#fff",
+  border: "none",
+  padding: "8px 14px",
+  borderRadius: 6,
+  width: 200,
+};
+
+const table = {
+  width: "100%",
+  borderCollapse: "collapse",
+};
+
+const tableCell = {
+  border: "1px solid #ccc",
+  padding: 8,
+  textAlign: "center",
+};
 
 export default AdminPanel;

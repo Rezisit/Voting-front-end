@@ -9,7 +9,7 @@ function BallotReceiptPage({ auth }) {
   useEffect(() => {
     const fetchVotes = async () => {
       try {
-        // 🔥 FIX: always get token safely
+        
         const token =
           auth?.token || localStorage.getItem("token");
 
@@ -21,7 +21,7 @@ function BallotReceiptPage({ auth }) {
           return;
         }
 
-        const res = await axios.get(`${API_URL}/api/votes`, {
+        const res = await axios.get(`${"http://localhost:5000/api/votes"}/api/votes`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },

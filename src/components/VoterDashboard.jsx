@@ -109,29 +109,46 @@ function VotingPage({ auth }) {
 
   // ✅ FIXED CONFIRM VOTE
   const confirmVote = async () => {
-    try {
-      setSubmitting(true);
+  try {
+    setSubmitting(true);
 
-      await axios.post(
-        `${API_URL}/api/votes/batch`, // ✅ FIXED HERE
-        { candidateIds: Object.values(selected).filter(Boolean) },
-        { headers: { Authorization: `Bearer ${auth.token}` } }
-      );
+    // ✅ Build proper vote structure (IMPORTANT FIX)
+    const votes = Object.entries(selected)
+      .filter(([_, candidateId]) => candidateId)
+      .map(([position, candidateId]) => ({
+        candidateId,
+        position,
+      }));
 
-      setHasVoted(true);
-      setSelected({});
-      setShowModal(false);
-      setShowFeedback(true);
-    } catch (err) {
-      console.error(err);
-      setModalType("error");
-      setModalMessage(
-        err.response?.data?.message || "Vote failed. Please try again."
-      );
-      setShowModal(true);
-    } finally {
-      setSubmitting(false);
-    }
+    // ❗ DEBUG (you can remove later)
+    console.log("SENDING VOTES:", votes);
+
+    await axios.post(
+      `${API_URL}/api/votes/batch`,
+      { votes },
+      {
+        headers: {
+          Authorization: `Bearer ${auth.token}`,
+        },
+      }
+    );
+
+  
+    setHasVoted(true);
+    setSelected({});
+    setShowModal(false);
+    setShowFeedback(true);
+  } catch (err) {
+    console.error("VOTE ERROR:", err.response?.data || err.message);
+
+    setModalType("error");
+    setModalMessage(
+      err.response?.data?.message || "Vote failed. Please try again."
+    );
+    setShowModal(true);
+  } finally {
+    setSubmitting(false);
+  }
   };
 
   if (loading) return <div style={{ padding: 50 }}>Loading candidates...</div>;
