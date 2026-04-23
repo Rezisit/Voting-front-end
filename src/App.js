@@ -208,7 +208,7 @@ function AdminApp({
               <Link to="/admin-feedback" style={modernButton(theme)}>Feedback</Link>
 
               <button onClick={() => setShowAnonymous(!showAnonymous)} style={modernButton(theme)}>
-                {showAnonymous ? "Hide Chart" : "Anonymous Chart"}
+                {showAnonymous ? "Hide Chart" : " Show Chart "}
               </button>
 
               <button

@@ -21,19 +21,16 @@ function VotingPage({ auth }) {
   const [submitting, setSubmitting] = useState(false);
   const [hasVoted, setHasVoted] = useState(false);
 
-  // Vote modal
   const [showModal, setShowModal] = useState(false);
   const [modalMessage, setModalMessage] = useState("");
   const [modalType, setModalType] = useState("confirm");
 
-  // Feedback modal
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
   const [rating, setRating] = useState(0);
 
   const navigate = useNavigate();
 
-  // Fetch candidates and user votes
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -67,7 +64,6 @@ function VotingPage({ auth }) {
     fetchData();
   }, [auth]);
 
-  // Group candidates by position
   const groupedCandidates = useMemo(() => {
     return candidates.reduce((groups, candidate) => {
       const position = candidate.candidacy;
@@ -77,7 +73,6 @@ function VotingPage({ auth }) {
     }, {});
   }, [candidates]);
 
-  // Handle candidate selection
   const handleSelect = (position, candidateId) => {
     if (hasVoted) return;
     setSelected((prev) => ({
@@ -86,7 +81,7 @@ function VotingPage({ auth }) {
     }));
   };
 
-  // Cast vote button
+  // ✅ UPDATED CAST VOTE (WITH VALIDATION + REVIEW)
   const handleCastVote = () => {
     if (!auth?.token) {
       setModalType("error");
@@ -95,67 +90,69 @@ function VotingPage({ auth }) {
       return;
     }
 
-    if (Object.keys(selected).filter((k) => selected[k]).length === 0) {
+    const totalPositions = Object.keys(groupedCandidates).length;
+    const selectedCount = Object.values(selected).filter(Boolean).length;
+
+    if (selectedCount === 0) {
       setModalType("error");
       setModalMessage("Please select a candidate first.");
       setShowModal(true);
       return;
     }
 
+    if (selectedCount < totalPositions) {
+      setModalType("error");
+      setModalMessage("Please vote for all positions before submitting.");
+      setShowModal(true);
+      return;
+    }
+
     setModalType("confirm");
-    setModalMessage("Are you sure you want to cast your vote?");
+    setModalMessage("Review your selected candidates before submitting:");
     setShowModal(true);
   };
 
-  // ✅ FIXED CONFIRM VOTE
   const confirmVote = async () => {
-  try {
-    setSubmitting(true);
+    try {
+      setSubmitting(true);
 
-    // ✅ Build proper vote structure (IMPORTANT FIX)
-    const votes = Object.entries(selected)
-      .filter(([_, candidateId]) => candidateId)
-      .map(([position, candidateId]) => ({
-        candidateId,
-        position,
-      }));
+      const votes = Object.entries(selected)
+        .filter(([_, candidateId]) => candidateId)
+        .map(([position, candidateId]) => ({
+          candidateId,
+          position,
+        }));
 
-    // ❗ DEBUG (you can remove later)
-    console.log("SENDING VOTES:", votes);
+      await axios.post(
+        `${API_URL}/api/votes/batch`,
+        { votes },
+        {
+          headers: {
+            Authorization: `Bearer ${auth.token}`,
+          },
+        }
+      );
 
-    await axios.post(
-      `${API_URL}/api/votes/batch`,
-      { votes },
-      {
-        headers: {
-          Authorization: `Bearer ${auth.token}`,
-        },
-      }
-    );
-
-  
-    setHasVoted(true);
-    setSelected({});
-    setShowModal(false);
-    setShowFeedback(true);
-  } catch (err) {
-    console.error("VOTE ERROR:", err.response?.data || err.message);
-
-    setModalType("error");
-    setModalMessage(
-      err.response?.data?.message || "Vote failed. Please try again."
-    );
-    setShowModal(true);
-  } finally {
-    setSubmitting(false);
-  }
+      setHasVoted(true);
+      setSelected({});
+      setShowModal(false);
+      setShowFeedback(true);
+    } catch (err) {
+      console.error(err);
+      setModalType("error");
+      setModalMessage(
+        err.response?.data?.message || "Vote failed. Please try again."
+      );
+      setShowModal(true);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (loading) return <div style={{ padding: 50 }}>Loading candidates...</div>;
 
   return (
     <div style={{ backgroundColor: THEME.background, minHeight: "100vh" }}>
-      {/* HEADER */}
       <div
         style={{
           width: "100%",
@@ -167,11 +164,10 @@ function VotingPage({ auth }) {
           fontSize: 22,
         }}
       >
-        <img src={sorsuLogo} alt="SorSU Logo" style={{ height: 50, marginRight: 10 }} />
+        <img src={sorsuLogo} alt="" style={{ height: 50, marginRight: 10 }} />
         OFFICIAL CANDIDATES LIST 2026
       </div>
 
-      {/* CANDIDATES */}
       <div style={{ padding: 60, maxWidth: 1300, margin: "auto" }}>
         {Object.entries(groupedCandidates).map(([position, list]) => (
           <div key={position} style={{ marginBottom: 60 }}>
@@ -185,10 +181,10 @@ function VotingPage({ auth }) {
             >
               {position}
             </h2>
+
             <div style={{ display: "flex", gap: 20, overflowX: "auto" }}>
               {list.map((candidate) => {
                 const isSelected = selected[position] === candidate._id;
-                const alreadyVoted = hasVoted;
                 return (
                   <div
                     key={candidate._id}
@@ -198,15 +194,14 @@ function VotingPage({ auth }) {
                       backgroundColor: THEME.white,
                       borderRadius: 15,
                       padding: 20,
-                      cursor: alreadyVoted ? "not-allowed" : "pointer",
-                      opacity: alreadyVoted ? 0.6 : 1,
+                      cursor: hasVoted ? "not-allowed" : "pointer",
+                      opacity: hasVoted ? 0.6 : 1,
                       border: isSelected
                         ? `4px solid ${THEME.primary}`
                         : "2px solid transparent",
                       boxShadow: isSelected
                         ? "0 15px 30px rgba(177,18,38,0.3)"
                         : "0 10px 25px rgba(0,0,0,0.05)",
-                      transition: "0.3s",
                     }}
                   >
                     {candidate.image ? (
@@ -232,18 +227,18 @@ function VotingPage({ auth }) {
                         }}
                       />
                     )}
+
                     <h3>
                       {candidate.firstName} {candidate.lastName}
                     </h3>
+                    <p><strong>Course:</strong> {candidate.course || "N/A"}</p>
                     <p>
-                      <strong>Course:</strong> {candidate.course || "N/A"}
+                      <strong>Year & Block:</strong>{" "}
+                      {candidate.yearLevel || "N/A"} - {candidate.block || ""}
                     </p>
                     <p>
-                      <strong>Year & Block:</strong> {candidate.yearLevel || "N/A"} -{" "}
-                      {candidate.block || ""}
-                    </p>
-                    <p>
-                      <strong>Partylist:</strong> {candidate.partylist || "Independent"}
+                      <strong>Partylist:</strong>{" "}
+                      {candidate.partylist || "Independent"}
                     </p>
                   </div>
                 );
@@ -252,7 +247,6 @@ function VotingPage({ auth }) {
           </div>
         ))}
 
-        {/* CAST VOTE BUTTON */}
         {!hasVoted && (
           <div style={{ textAlign: "center", marginTop: 40 }}>
             <button
@@ -275,25 +269,46 @@ function VotingPage({ auth }) {
         )}
       </div>
 
-      {/* VOTE MODAL */}
+      {/* ✅ REVIEW + CONFIRM MODAL */}
       {showModal && (
         <div style={modalStyles.overlay}>
           <div style={modalStyles.modal}>
             <h3>
               {modalType === "confirm"
-                ? "Confirm Vote"
-                : modalType === "success"
-                ? "Success"
-                : "Error"}
+                ? "Review Your Vote"
+                : modalType === "error"
+                ? "Error"
+                : "Success"}
             </h3>
-            <p style={{ marginBottom: 20 }}>{modalMessage}</p>
+
+            <p style={{ marginBottom: 10 }}>{modalMessage}</p>
+
+            {/* 🔥 REVIEW LIST */}
+            {modalType === "confirm" && (
+              <div style={{ textAlign: "left", marginBottom: 20 }}>
+                {Object.entries(groupedCandidates).map(([position, list]) => {
+                  const selectedId = selected[position];
+                  const chosen = list.find((c) => c._id === selectedId);
+
+                  return (
+                    <div key={position} style={{ marginBottom: 8 }}>
+                      <strong>{position}:</strong>{" "}
+                      {chosen
+                        ? `${chosen.firstName} ${chosen.lastName}`
+                        : "No selection"}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             {modalType === "confirm" ? (
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <button style={modalStyles.cancel} onClick={() => setShowModal(false)}>
-                  Cancel
+                  Back
                 </button>
                 <button style={modalStyles.confirm} onClick={confirmVote}>
-                  Confirm
+                  Confirm & Submit
                 </button>
               </div>
             ) : (
@@ -305,7 +320,7 @@ function VotingPage({ auth }) {
         </div>
       )}
 
-      {/* FEEDBACK MODAL */}
+      {/* FEEDBACK MODAL (unchanged) */}
       {showFeedback && (
         <div style={modalStyles.overlay}>
           <div style={modalStyles.modal}>
@@ -340,7 +355,6 @@ function VotingPage({ auth }) {
                 borderRadius: 6,
                 border: "1px solid #ccc",
               }}
-              placeholder="Type your feedback here..."
             />
 
             <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -348,8 +362,6 @@ function VotingPage({ auth }) {
                 style={modalStyles.cancel}
                 onClick={() => {
                   setShowFeedback(false);
-                  setFeedbackText("");
-                  setRating(0);
                   navigate("/my-votes");
                 }}
               >
@@ -365,14 +377,10 @@ function VotingPage({ auth }) {
                       { message: feedbackText, rating },
                       { headers: { Authorization: `Bearer ${auth.token}` } }
                     );
-
                     setShowFeedback(false);
-                    setFeedbackText("");
-                    setRating(0);
                     navigate("/my-votes");
                   } catch (err) {
-                    console.error(err);
-                    alert(err.response?.data?.message || "Failed to submit feedback.");
+                    alert("Failed to submit feedback.");
                   }
                 }}
               >
@@ -411,7 +419,6 @@ const modalStyles = {
     backgroundColor: "#ccc",
     border: "none",
     borderRadius: 6,
-    cursor: "pointer",
   },
   confirm: {
     padding: "10px 20px",
@@ -419,7 +426,6 @@ const modalStyles = {
     color: "#fff",
     border: "none",
     borderRadius: 6,
-    cursor: "pointer",
   },
 };
 

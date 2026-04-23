@@ -9,31 +9,22 @@ function BallotReceiptPage({ auth }) {
   useEffect(() => {
     const fetchVotes = async () => {
       try {
-        
-        const token =
-          auth?.token || localStorage.getItem("token");
-
-        console.log("TOKEN USED:", token);
+        const token = auth?.token || localStorage.getItem("token");
 
         if (!token) {
-          console.log("No token found");
           setLoading(false);
           return;
         }
 
-        const res = await axios.get(`${"http://localhost:5000/api/votes"}/api/votes`, {
+        const res = await axios.get(`${API_URL}/api/votes`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
 
-        console.log("Votes API:", res.data);
-
-        const data = Array.isArray(res.data) ? res.data : [];
-        setVotes(data);
-
+        setVotes(Array.isArray(res.data) ? res.data : []);
       } catch (err) {
-        console.error("FULL ERROR:", err.response?.data || err.message);
+        console.error("BALLLOT ERROR:", err.response?.data || err.message);
         alert(err.response?.data?.message || "Failed to load ballot.");
       } finally {
         setLoading(false);
@@ -43,10 +34,8 @@ function BallotReceiptPage({ auth }) {
     fetchVotes();
   }, [auth]);
 
-  // =========================
-  // GROUP VOTES BY POSITION
-  // =========================
-  const groupedVotes = (votes || []).reduce((acc, vote) => {
+  // GROUP BY POSITION
+  const groupedVotes = votes.reduce((acc, vote) => {
     if (!vote?.position) return acc;
 
     if (!acc[vote.position]) acc[vote.position] = [];
@@ -55,9 +44,7 @@ function BallotReceiptPage({ auth }) {
     return acc;
   }, {});
 
-  const handlePrint = () => {
-    window.print();
-  };
+  const handlePrint = () => window.print();
 
   if (loading) return <p>Loading your ballot...</p>;
 
@@ -65,14 +52,12 @@ function BallotReceiptPage({ auth }) {
     <div style={styles.page}>
       <div style={styles.receipt}>
 
-        {/* HEADER */}
         <div style={styles.header}>
           <h2>Official Voting Receipt</h2>
           <p>{new Date().toLocaleString()}</p>
           <span style={styles.badge}>✔ Verified Vote</span>
         </div>
 
-        {/* VOTES */}
         {Object.keys(groupedVotes).length === 0 ? (
           <p>No vote records found for this account.</p>
         ) : (
@@ -82,24 +67,27 @@ function BallotReceiptPage({ auth }) {
 
               {groupedVotes[position].map((v, index) => (
                 <div key={index} style={styles.voteItem}>
+
                   {v.image && (
                     <img
                       src={`${API_URL}/uploads/${v.image}`}
-                      alt={v.candidateName}
+                      alt="candidate"
                       style={styles.image}
                     />
                   )}
 
                   <div>
-                    <strong>{v.candidateName || "Unknown Candidate"}</strong>
+                    <strong>
+                      {v.candidateName || "Unknown Candidate"}
+                    </strong>
                   </div>
+
                 </div>
               ))}
             </div>
           ))
         )}
 
-        {/* PRINT BUTTON */}
         <button onClick={handlePrint} style={styles.printBtn}>
           Print Receipt
         </button>
@@ -108,14 +96,8 @@ function BallotReceiptPage({ auth }) {
   );
 }
 
-// =========================
-// STYLES
-// =========================
 const styles = {
-  page: {
-    maxWidth: 800,
-    margin: "40px auto",
-  },
+  page: { maxWidth: 800, margin: "40px auto" },
   receipt: {
     background: "#fff",
     padding: 30,
@@ -135,14 +117,8 @@ const styles = {
     borderRadius: 6,
     fontSize: 12,
   },
-  section: {
-    marginBottom: 20,
-    textAlign: "left",
-  },
-  position: {
-    color: "#B11226",
-    marginBottom: 10,
-  },
+  section: { marginBottom: 20, textAlign: "left" },
+  position: { color: "#B11226", marginBottom: 10 },
   voteItem: {
     display: "flex",
     alignItems: "center",
@@ -150,11 +126,7 @@ const styles = {
     padding: 10,
     borderBottom: "1px solid #eee",
   },
-  image: {
-    width: 50,
-    height: 50,
-    borderRadius: 6,
-  },
+  image: { width: 50, height: 50, borderRadius: 6 },
   printBtn: {
     marginTop: 20,
     padding: "10px 20px",

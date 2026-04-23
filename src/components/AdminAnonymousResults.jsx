@@ -11,7 +11,6 @@ import {
 } from "chart.js";
 import { Bar, Pie } from "react-chartjs-2";
 
-// Register chart components
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -29,13 +28,19 @@ function AdminAnonymousResults({ theme = {} }) {
   const [loading, setLoading] = useState(true);
   const [resetting, setResetting] = useState(false);
 
-  // Fetch candidates
+  // 🔥 NEW: toggle view
+  const [viewMode, setViewMode] = useState("censored"); 
+  // "censored" | "uncensored"
+
+  // ======================
+  // FETCH
+  // ======================
   const fetchCandidates = useCallback(async () => {
     try {
       const { data } = await axios.get(`${API_URL}/api/candidates`);
       setCandidates(data);
     } catch (error) {
-      console.error("Error fetching candidates:", error);
+      console.error(error);
     } finally {
       setLoading(false);
     }
@@ -47,103 +52,71 @@ function AdminAnonymousResults({ theme = {} }) {
     return () => clearInterval(interval);
   }, [fetchCandidates]);
 
-  // Reset votes
+  // ======================
+  // RESET
+  // ======================
   const handleResetVotes = async () => {
-    const confirmReset = window.confirm(
-      "Are you sure you want to reset all votes?"
-    );
-    if (!confirmReset) return;
+    if (!window.confirm("Reset all votes?")) return;
 
     try {
       setResetting(true);
       await axios.post(`${API_URL}/api/admin/reset-votes`);
       await fetchCandidates();
-    } catch (error) {
-      console.error("Reset failed:", error);
-      alert("Failed to reset votes");
+    } catch (err) {
+      alert("Reset failed");
     } finally {
       setResetting(false);
     }
   };
 
-  // Export CSV
-  const handleExport = () => {
-    if (!candidates.length) return;
-
-    let csv = "Position,Candidate,Votes\n";
-
-    candidates.forEach((c, index) => {
-      csv += `${c.candidacy || "Other"},Candidate ${
-        index + 1
-      },${c.votes || 0}\n`;
-    });
-
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "election_results.csv";
-    link.click();
-  };
-
-  // Group candidates
-  const groupedCandidates = candidates.reduce((acc, candidate) => {
-    const position = candidate.candidacy || "Other";
-    if (!acc[position]) acc[position] = [];
-    acc[position].push(candidate);
+  // ======================
+  // GROUP
+  // ======================
+  const groupedCandidates = candidates.reduce((acc, c) => {
+    const pos = c.candidacy || "Other";
+    if (!acc[pos]) acc[pos] = [];
+    acc[pos].push(c);
     return acc;
   }, {});
 
-  if (loading) {
-    return <div style={{ padding: 20 }}>Loading results...</div>;
-  }
+  if (loading) return <div>Loading...</div>;
 
   return (
-    <div style={{ padding: "20px 30px" }}>
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 30,
-          flexWrap: "wrap",
-          gap: 10,
-        }}
-      >
-        <h2>Anonymous Election Monitor</h2>
+    <div style={{ padding: 30 }}>
+      {/* HEADER */}
+      <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <h2>Election Results Dashboard</h2>
 
         <div style={{ display: "flex", gap: 10 }}>
-          {/* Export Button */}
+          {/* TOGGLE BUTTON */}
           <button
-            onClick={handleExport}
+            onClick={() =>
+              setViewMode(viewMode === "censored" ? "uncensored" : "censored")
+            }
             style={{
-              backgroundColor: "#1E3A8A",
-              color: "#fff",
-              border: "none",
-              padding: "10px 16px",
+              padding: "10px 15px",
               borderRadius: 8,
+              border: "none",
+              background: "#1E3A8A",
+              color: "#fff",
               cursor: "pointer",
-              fontWeight: "bold",
             }}
           >
-            Export CSV
+            {viewMode === "censored"
+              ? "Show Real Names"
+              : "Hide Names"}
           </button>
 
-          {/* Reset Button */}
+          {/* RESET */}
           <button
             onClick={handleResetVotes}
             disabled={resetting}
             style={{
               backgroundColor: "#B11226",
               color: "#fff",
-              border: "none",
-              padding: "10px 16px",
+              padding: "10px 15px",
               borderRadius: 8,
-              cursor: "pointer",
-              fontWeight: "bold",
-              opacity: resetting ? 0.7 : 1,
+              border: "none",
             }}
           >
             {resetting ? "Resetting..." : "Reset Votes"}
@@ -151,15 +124,20 @@ function AdminAnonymousResults({ theme = {} }) {
         </div>
       </div>
 
-      {/* Charts */}
+      {/* CHARTS */}
       {Object.entries(groupedCandidates).map(([position, list]) => {
         const sorted = [...list].sort(
           (a, b) => (b.votes || 0) - (a.votes || 0)
         );
 
-        const labels = sorted.map(
-          (_, index) => `Candidate ${index + 1}`
-        );
+        // 🔥 LABEL LOGIC
+        const labels =
+          viewMode === "censored"
+            ? sorted.map((_, i) => `Candidate ${i + 1}`)
+            : sorted.map(
+                (c) => `${c.firstName} ${c.lastName}`
+              );
+
         const votes = sorted.map((c) => c.votes || 0);
 
         const colors = [
@@ -169,12 +147,10 @@ function AdminAnonymousResults({ theme = {} }) {
           "#3B82F6",
           "#7F1D1D",
           "#1E40AF",
-          "#F87171",
-          "#60A5FA",
         ];
 
         const dataset = {
-          label: `${position} Votes`,
+          label: position,
           data: votes,
           backgroundColor: colors,
         };
@@ -183,27 +159,22 @@ function AdminAnonymousResults({ theme = {} }) {
           <div
             key={position}
             style={{
-              marginBottom: 40,
-              backgroundColor: theme?.card || "#fff",
+              marginTop: 30,
+              background: "#fff",
               padding: 20,
               borderRadius: 12,
-              boxShadow: "0 4px 10px rgba(0,0,0,0.08)",
-              border: "1px solid rgba(0,0,0,0.05)",
             }}
           >
-            <h3 style={{ marginBottom: 20 }}>{position}</h3>
+            <h3>{position}</h3>
 
-            {/* RESPONSIVE GRID */}
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns:
-                  "repeat(auto-fit, minmax(300px, 1fr))",
-                gap: 30,
-                alignItems: "center",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 20,
               }}
             >
-              {/* BAR CHART */}
+              {/* BAR */}
               <div style={{ height: 300 }}>
                 <Bar
                   data={{ labels, datasets: [dataset] }}
@@ -211,33 +182,17 @@ function AdminAnonymousResults({ theme = {} }) {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
-                    scales: {
-                      y: {
-                        beginAtZero: true,
-                        ticks: { precision: 0 },
-                      },
-                    },
                   }}
                 />
               </div>
 
-              {/* PIE CHART */}
-              <div
-                style={{
-                  height: 300,
-                  display: "flex",
-                  justifyContent: "center",
-                  alignItems: "center",
-                }}
-              >
+              {/* PIE */}
+              <div style={{ height: 300 }}>
                 <Pie
                   data={{ labels, datasets: [dataset] }}
                   options={{
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                      legend: { position: "bottom" },
-                    },
                   }}
                 />
               </div>
